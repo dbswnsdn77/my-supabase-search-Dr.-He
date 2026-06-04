@@ -1,82 +1,106 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Supabase 검색 테스트</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>데이터 조회 서비스</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+<body class="bg-slate-50 flex items-center justify-center min-h-screen">
 
-  <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-    <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">데이터베이스 조회하기</h1>
-    
-    <form id="searchForm" class="space-y-4">
-      <div>
-        <label for="searchInput" class="block text-sm font-medium text-gray-700">검색어 입력 (A)</label>
-        <input type="text" id="searchInput" placeholder="예: 사과" required
-          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-      </div>
-      <button type="submit" 
-        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-        제출하기
-      </button>
-    </form>
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md mx-4">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">정보 검색기</h1>
+        
+        <div class="space-y-4">
+            <div>
+                <label for="userInput" class="block text-sm font-medium text-gray-600 mb-1">검색어 입력</label>
+                <input type="text" id="userInput" placeholder="검색어를 입력하세요 (예: 사과)" 
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+            </div>
+            
+            <button id="searchBtn" 
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition active:scale-[0.98]">
+                제출하기
+            </button>
+        </div>
 
-    <div id="resultArea" class="mt-6 p-4 bg-gray-50 rounded-md hidden">
-      <h2 class="text-sm font-semibold text-gray-500">조회 결과:</h2>
-      <p id="resultValue" class="mt-2 text-lg text-gray-900 font-medium"></p>
+        <div id="resultBox" class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-100 hidden">
+            <p class="text-sm text-gray-500 font-semibold">조회 결과:</p>
+            <p id="resultText" class="mt-1 break-all"></p>
+        </div>
     </div>
-  </div>
 
-  <script>
-    // 1. Supabase 초기화 (본인의 정보로 변경하세요)
-    const SUPABASE_URL = 'https://sowrxhudpugvoytcobsh.supabase.co/rest/v1/'; 
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvd3J4aHVkcHVndm95dGNvYnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NjA1MDAsImV4cCI6MjA5NjEzNjUwMH0.HqtA7_8gn32MILCkJSnpVaN7U_5pmV2OPDBax_9L7js';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    <script>
+        // [⚠️ 필수 변경] 1단계에서 복사한 본인의 Supabase 정보를 입력하세요
+        const SUPABASE_URL = 'https://sowrxhudpugvoytcobsh.supabase.co/rest/v1/';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvd3J4aHVkcHVndm95dGNvYnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NjA1MDAsImV4cCI6MjA5NjEzNjUwMH0.HqtA7_8gn32MILCkJSnpVaN7U_5pmV2OPDBax_9L7js';
+        
+        // Supabase 클라이언트 초기화
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. DOM 요소 가져오기
-    const searchForm = document.getElementById('searchForm');
-    const searchInput = document.getElementById('searchInput');
-    const resultArea = document.getElementById('resultArea');
-    const resultValue = document.getElementById('resultValue');
+        // HTML 요소(DOM) 가져오기
+        const inputField = document.getElementById('userInput');
+        const btn = document.getElementById('searchBtn');
+        const resultBox = document.getElementById('resultBox');
+        const resultText = document.getElementById('resultText');
 
-    // 3. 폼 제출 이벤트 리스너
-    searchForm.addEventListener('submit', async (e) => {
-      e.preventDefault(); // 새로고침 방지
-      
-      const inputValue = searchInput.value.trim();
-      
-      // 로딩 표시
-      resultArea.classList.remove('hidden');
-      resultValue.textContent = '검색 중...';
+        // 버튼 클릭 이벤트 리스너
+        btn.onclick = async () => {
+            const word = inputField.value.trim(); // 앞뒤 공백 제거
+            
+            // 1. 입력값이 비어있는 경우 처리
+            if (!word) {
+                resultBox.classList.remove('hidden');
+                resultText.textContent = "검색어를 입력해 주세요.";
+                resultText.className = "text-amber-600 font-medium mt-1";
+                return;
+            }
+            
+            // 2. 버튼을 누른 직후 로딩 상태 표시
+            resultBox.classList.remove('hidden');
+            resultText.textContent = "데이터베이스 조회 중...";
+            resultText.className = "text-gray-500 animate-pulse mt-1";
 
-      try {
-        // 4. Supabase DB에서 조회
-        // 'items' 테이블에서 'title'이 사용자가 입력한 값(inputValue)과 일치하는 데이터 중 첫 번째 행을 가져옴
-        const { data, error } = await supabase
-          .from('items')
-          .select('content')
-          .eq('title', inputValue)
-          .single();
+            try {
+                // 3. Supabase 데이터베이스 조회 (.single()을 제외하여 에러 터짐 방지)
+                const { data, error } = await _supabase
+                    .from('search_data')   // 테이블 이름
+                    .select('description') // 가져올 컬럼 이름
+                    .eq('keyword', word);  // 조건: keyword 컬럼이 입력한 단어와 같은 것
 
-        if (error) throw error;
+                // 4. Supabase 자체에서 에러 응답을 보낸 경우 (테이블명 오타, RLS 차단 등)
+                if (error) {
+                    console.error("Supabase 에러 상세:", error);
+                    resultText.textContent = `데이터를 찾지 못했습니다. (원인: ${error.message})`;
+                    resultText.className = "text-red-500 font-semibold mt-1";
+                    return;
+                }
 
-        // 5. 결과 화면에 표시
-        if (data) {
-          resultValue.textContent = data.content;
-          resultValue.className = "mt-2 text-lg text-green-600 font-bold";
-        } else {
-          resultValue.textContent = '일치하는 데이터가 없습니다.';
-          resultValue.className = "mt-2 text-lg text-red-500";
-        }
-      } catch (err) {
-        console.error(err);
-        resultValue.textContent = '데이터를 찾지 못했습니다. (오류 발생)';
-        resultValue.className = "mt-2 text-lg text-red-500";
-      }
-    });
-  </script>
+                // 5. 성공적으로 통신했으나 일치하는 데이터가 없는 경우 (배열이 빔)
+                if (!data || data.length === 0) {
+                    resultText.textContent = "일치하는 데이터가 없습니다.";
+                    resultText.className = "text-rose-500 font-medium mt-1";
+                } else {
+                    // 6. 데이터를 완벽하게 찾은 경우 (첫 번째 결과 표시)
+                    resultText.textContent = data[0].description;
+                    resultText.className = "text-green-600 font-bold mt-1";
+                }
+
+            } catch (err) {
+                // 7. 네트워크 단절, 자바스크립트 오타 등 완전히 예상치 못한 시스템 에러 처리
+                console.error("시스템 치명적 에러 상세:", err);
+                resultText.textContent = "시스템 오류가 발생했습니다. 개발자 도구(F12) 콘솔을 확인하세요.";
+                resultText.className = "text-red-700 font-extrabold mt-1";
+            }
+        };
+
+        // 엔터키를 눌러도 제출이 되도록 편의 기능 추가
+        inputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                btn.click();
+            }
+        });
+    </script>
 </body>
 </html>
