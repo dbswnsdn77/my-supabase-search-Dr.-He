@@ -177,29 +177,37 @@
 
         // [화면 2 ➡️ 화면 3] 추천 진료과의 모든 병원을 필터링 없이 출력 (테스트 모드)
 // [화면 2 ➡️ 화면 3] 판정된 진료과 및 DDL 스키마 구조에 맞게 Supabase DB 실시간 조회 (필터링 완벽 적용)
+// 시간을 분(Minute) 단위 숫자로 변환하는 헬퍼 함수
+function timeStringToMinutes(timeStr) {
+    if (!timeStr) return null;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
+// [화면 2 ➡️ 화면 3] 선택한 요일/시간을 고려하여 병원별 진료 가능 여부 표시
 async function submitSchedule() {
-    const dayOfWeek = document.getElementById('visitDate').value;
+    const dayOfWeek = document.getElementById('visitDate').value; // 예: "월", "화"
     const ampm = document.getElementById('visitAmpm').value;
     let hour = parseInt(document.getElementById('visitHour').value);
     const minute = document.getElementById('visitMinute').value;
     const dept = document.getElementById('aiDepartment').textContent;
 
+    // 24시간제로 시간 변환
     if(ampm === "PM" && hour !== 12) hour += 12;
     if(ampm === "AM" && hour === 12) hour = 0;
     const userTargetTimeString = `${hour.toString().padStart(2, '0')}:${minute}`;
     const userTargetMinutes = timeStringToMinutes(userTargetTimeString);
 
     document.getElementById('matchDept').textContent = `🩺 ${dept}`;
-    document.getElementById('matchTime').textContent = `⏰ 방문예정: ${userTargetTimeString}`;
+    document.getElementById('matchTime').textContent = `⏰ 방문예정: ${userTargetTimeString} (${dayOfWeek}요일)`;
 
     const listContainer = document.getElementById('hospitalList');
     const markerContainer = document.getElementById('mapMarkers');
-    listContainer.innerHTML = '<p class="text-center font-bold text-emerald-600">내 Supabase DB 원격 테이블 조회 중...</p>';
+    listContainer.innerHTML = '<p class="text-center font-bold text-emerald-600">실시간 병원 운영 시간 검증 중...</p>';
     markerContainer.innerHTML = '';
 
     try {
-        // [수정 포인트] hospital_departments를 메인 테이블로 설정하고, 
-        // 관계가 맺어진 hospital_meta의 데이터를 통째로 조인(Join)하여 가져옵니다.
+        // 1️⃣ 해당 진료과를 가진 병원 정보 및 운영시간 DB 조회
         const { data: deptRows, error } = await supabaseClient
             .from('hospital_departments')
             .select(`
@@ -216,97 +224,91 @@ async function submitSchedule() {
         if (error) throw error;
         listContainer.innerHTML = '';
 
-        // 진료과에 매칭되는 데이터 자체가 없을 때
         if(!deptRows || deptRows.length === 0) {
-            listContainer.innerHTML = `<p class="text-center text-slate-400 py-4">현재 병원 데이터베이스에 [${dept}]를 진료하는 곳이 등록되어 있지 않습니다.</p>`;
+            listContainer.innerHTML = `<p class="text-center text-slate-400 py-4">현재 DB에 [${dept}] 진료 병원이 등록되어 있지 않습니다.</p>`;
             navigateTo('page3');
             return;
         }
 
-        let renderedCount = 0;
-
-        deptRows.forEach((row) => {
-            // 조인된 hospital_meta 데이터 추출
+        // 2️⃣ 병원별로 현재 시간에 갈 수 있는지 없는지 판별 루프
+        deptRows.forEach((row, index) => {
             const h = row.hospital_meta;
-            if (!h) return; // 연결된 병원 메타 데이터가 없으면 패스
+            if (!h) return;
 
-            const dayMap = { '일':'sun', '월':'mon', '화':'tue', '수':'wed', '목':'thu', '금':'fri', '토':'sat' };
+            // 요일에 맞는 컬럼명 매핑 (월 -> mon_open / mon_close)
+            const dayMap = { '월':'mon', '화':'tue', '수':'wed', '목':'thu', '금':'fri', '토':'sat', '일':'sun' };
             const prefix = dayMap[dayOfWeek];
+            
             const openTime = h[`${prefix}_open`];   
             const closeTime = h[`${prefix}_close`]; 
 
-            // 1️⃣ [휴무일 체크] 선택한 요일에 운영 시간이 비어있으면(Null) 제외
-            if (!openTime || !closeTime) {
-                return; 
-            }
+            let canVisit = true;
+            let statusText = "🟢 진료 가능 (방문 가능)";
+            let statusColor = "bg-green-500";
+            let cardBg = "bg-white";
 
             const openMin = timeStringToMinutes(openTime);
             const closeMin = timeStringToMinutes(closeTime);
+            const lunchStartMin = timeStringToMinutes(h.lunch_start);
+            const lunchEndMin = timeStringToMinutes(h.lunch_end);
 
-            // 2️⃣ [운영시간 체크] 방문 시간이 오픈 전이거나 마감 이후면 제외
-            if (userTargetMinutes < openMin || userTargetMinutes >= closeMin) {
-                return; 
+            // [조건 1] 해당 요일에 운영을 안 하거나 시간이 없는 경우 (휴무)
+            if (!openTime || !closeTime || openMin === null || closeMin === null) {
+                canVisit = false;
+                statusText = `🔴 정기 휴무 (${dayOfWeek}요일 휴진)`;
+                statusColor = "bg-red-500";
+                cardBg = "bg-slate-50 opacity-70";
+            } 
+            // [조건 2] 오픈 시간 전이거나 마감 시간 이후인 경우
+            else if (userTargetMinutes < openMin || userTargetMinutes >= closeMin) {
+                canVisit = false;
+                statusText = `🔴 진료 종료 (운영시간: ${openTime} ~ ${closeTime})`;
+                statusColor = "bg-red-500";
+                cardBg = "bg-slate-50 opacity-70";
+            } 
+            // [조건 3] 점심 시간 범위에 걸치는 경우
+            else if (lunchStartMin !== null && lunchEndMin !== null && 
+                     userTargetMinutes >= lunchStartMin && userTargetMinutes < lunchEndMin) {
+                canVisit = false;
+                statusText = `🟡 점심 시간 (${h.lunch_start} ~ ${h.lunch_end})`;
+                statusColor = "bg-amber-400";
+                cardBg = "bg-amber-50/50";
             }
 
-            // 3️⃣ [점심시간 체크] 점심시간 데이터가 존재하고 그 사이에 있다면 제외
-            if (h.lunch_start && h.lunch_end) {
-                const lunchStartMinutes = timeStringToMinutes(h.lunch_start);
-                const lunchEndMinutes = timeStringToMinutes(h.lunch_end);
-                if (userTargetMinutes >= lunchStartMinutes && userTargetMinutes < lunchEndMinutes) {
-                    return; 
-                }
-            }
-
-            // 4️⃣ [조건 통과 병원 출력]
-            let statusColor = "bg-green-500";
-            let textDesc = "🟢 진료중 / 대기 원활";
-
-            if (dayOfWeek === "토" || dayOfWeek === "일") {
-                statusColor = "bg-rose-500"; 
-                textDesc = "🔴 진료중 / 주말 대기 혼잡";
-            }
-
-            // 병원 카드 그리기
+            // 3️⃣ 결과에 따른 병원 카드 UI 동적 생성
             const card = document.createElement('div');
-            card.className = "flex items-center gap-4 p-4 bg-white border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]";
+            card.className = `flex items-center gap-4 p-4 ${cardBg} border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all`;
             card.innerHTML = `
                 <div class="w-5 h-5 ${statusColor} border-2 border-slate-900 rounded-full flex-shrink-0"></div>
-                <div>
-                    <p class="font-black text-lg text-slate-900">${h.name}</p>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <p class="font-black text-lg text-slate-900">${h.name}</p>
+                        ${!canVisit ? `<span class="text-[10px] bg-slate-900 text-white font-black px-1.5 py-0.5 rounded">방문불가</span>` : ''}
+                    </div>
                     <p class="text-xs text-slate-500 font-bold mt-0.5">📍 ${h.address}</p>
-                    <p class="text-sm text-blue-600 font-black mt-1">${textDesc}</p>
+                    <p class="text-sm font-black mt-1 ${canVisit ? 'text-emerald-600' : 'text-slate-500'}">${statusText}</p>
                 </div>
             `;
             listContainer.appendChild(card);
 
-            // 지도 마커 그리기
+            // 4️⃣ 지도 마커에도 상태 색상 반영
             const marker = document.createElement('div');
-            marker.className = `absolute w-6 h-6 ${statusColor} border-2 border-slate-900 rounded-full flex items-center justify-center cursor-pointer`;
-            marker.style.left = `${20 + (renderedCount * 15)}%`; 
-            marker.style.top = `${30 + (renderedCount * 12)}%`;
+            marker.className = `absolute w-6 h-6 ${statusColor} border-2 border-slate-900 rounded-full flex items-center justify-center cursor-pointer shadow-md`;
+            marker.style.left = `${20 + (index * 15)}%`; 
+            marker.style.top = `${30 + (index * 12)}%`;
             marker.innerHTML = `<span class="absolute whitespace-nowrap bg-white text-[10px] border border-slate-900 font-black px-1 rounded -top-5">${h.name.substring(0,6)}</span>`;
             markerContainer.appendChild(marker);
-
-            renderedCount++;
         });
 
-        // 5️⃣ [예외] 해당 진료과 병원은 있으나, 선택한 시간에 문을 연 곳이 아무도 없을 때
-        if (renderedCount === 0) {
-            listContainer.innerHTML = `
-                <p class="text-center text-slate-500 py-6">
-                    💡 선택하신 시간(<span class="text-blue-600 font-black">${userTargetTimeString}</span>)에는 <br>
-                    정기 휴무이거나 진료 시간이 종료되어 방문 가능한 [${dept}] 병원이 없습니다.
-                </p>`;
-        }
-
+        // 결과 페이지 이동
         navigateTo('page3');
 
     } catch (err) {
-        console.error("원격 DB 병원 목록 필터링 오류:", err);
+        console.error("원격 DB 시간 필터링 오류:", err);
         listContainer.innerHTML = `
-            <div class="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 space-y-1">
-                <p class="font-black">🚨 데이터베이스 조회 실패</p>
-                <p class="text-xs font-bold">오류 원인: ${err.message || err}</p>
+            <div class="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700">
+                <p class="font-black">🚨 시스템 오류 발생</p>
+                <p class="text-xs font-bold">${err.message || err}</p>
             </div>`;
         navigateTo('page3');
     }
