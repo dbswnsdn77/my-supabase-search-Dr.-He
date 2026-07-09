@@ -176,6 +176,7 @@
         }
 
         // [화면 2 ➡️ 화면 3] 추천 진료과의 모든 병원을 필터링 없이 출력 (테스트 모드)
+// [화면 2 ➡️ 화면 3] 판정된 진료과 및 DDL 스키마 구조에 맞게 Supabase DB 실시간 조회 (필터링 완벽 적용)
 async function submitSchedule() {
     const dayOfWeek = document.getElementById('visitDate').value;
     const ampm = document.getElementById('visitAmpm').value;
@@ -186,6 +187,7 @@ async function submitSchedule() {
     if(ampm === "PM" && hour !== 12) hour += 12;
     if(ampm === "AM" && hour === 12) hour = 0;
     const userTargetTimeString = `${hour.toString().padStart(2, '0')}:${minute}`;
+    const userTargetMinutes = timeStringToMinutes(userTargetTimeString);
 
     document.getElementById('matchDept').textContent = `🩺 ${dept}`;
     document.getElementById('matchTime').textContent = `⏰ 방문예정: ${userTargetTimeString}`;
@@ -196,31 +198,75 @@ async function submitSchedule() {
     markerContainer.innerHTML = '';
 
     try {
-        // 1️⃣ Supabase에서 해당 진료과를 가진 병원 데이터만 가져옴
-        const { data: dbHospitals, error } = await supabaseClient
-            .from('hospital_meta')
+        // [수정 포인트] hospital_departments를 메인 테이블로 설정하고, 
+        // 관계가 맺어진 hospital_meta의 데이터를 통째로 조인(Join)하여 가져옵니다.
+        const { data: deptRows, error } = await supabaseClient
+            .from('hospital_departments')
             .select(`
-                *,
-                hospital_departments!inner(department_name)
+                department_name,
+                hospital_meta (
+                    id, name, address, latitude, longitude,
+                    lunch_start, lunch_end,
+                    mon_open, mon_close, tue_open, tue_close, wed_open, wed_close,
+                    thu_open, thu_close, fri_open, fri_close, sat_open, sat_close, sun_open, sun_close
+                )
             `)
-            .eq('hospital_departments.department_name', dept);
+            .eq('department_name', dept);
 
         if (error) throw error;
         listContainer.innerHTML = '';
 
-        // 해당 진료과의 병원이 하나도 없을 때
-        if(!dbHospitals || dbHospitals.length === 0) {
+        // 진료과에 매칭되는 데이터 자체가 없을 때
+        if(!deptRows || deptRows.length === 0) {
             listContainer.innerHTML = `<p class="text-center text-slate-400 py-4">현재 병원 데이터베이스에 [${dept}]를 진료하는 곳이 등록되어 있지 않습니다.</p>`;
-            navigateTo('page3'); 
+            navigateTo('page3');
             return;
         }
 
-        // 2️⃣ 시간/요일 비교 없이 가져온 모든 병원을 화면에 출력
-        dbHospitals.forEach((h, index) => {
-            let statusColor = "bg-green-500";
-            let textDesc = "🟢 진료과 확인됨 (테스트 모드: 운영시간 검증 패스)";
+        let renderedCount = 0;
 
-            // 병원 카드 생성
+        deptRows.forEach((row) => {
+            // 조인된 hospital_meta 데이터 추출
+            const h = row.hospital_meta;
+            if (!h) return; // 연결된 병원 메타 데이터가 없으면 패스
+
+            const dayMap = { '일':'sun', '월':'mon', '화':'tue', '수':'wed', '목':'thu', '금':'fri', '토':'sat' };
+            const prefix = dayMap[dayOfWeek];
+            const openTime = h[`${prefix}_open`];   
+            const closeTime = h[`${prefix}_close`]; 
+
+            // 1️⃣ [휴무일 체크] 선택한 요일에 운영 시간이 비어있으면(Null) 제외
+            if (!openTime || !closeTime) {
+                return; 
+            }
+
+            const openMin = timeStringToMinutes(openTime);
+            const closeMin = timeStringToMinutes(closeTime);
+
+            // 2️⃣ [운영시간 체크] 방문 시간이 오픈 전이거나 마감 이후면 제외
+            if (userTargetMinutes < openMin || userTargetMinutes >= closeMin) {
+                return; 
+            }
+
+            // 3️⃣ [점심시간 체크] 점심시간 데이터가 존재하고 그 사이에 있다면 제외
+            if (h.lunch_start && h.lunch_end) {
+                const lunchStartMinutes = timeStringToMinutes(h.lunch_start);
+                const lunchEndMinutes = timeStringToMinutes(h.lunch_end);
+                if (userTargetMinutes >= lunchStartMinutes && userTargetMinutes < lunchEndMinutes) {
+                    return; 
+                }
+            }
+
+            // 4️⃣ [조건 통과 병원 출력]
+            let statusColor = "bg-green-500";
+            let textDesc = "🟢 진료중 / 대기 원활";
+
+            if (dayOfWeek === "토" || dayOfWeek === "일") {
+                statusColor = "bg-rose-500"; 
+                textDesc = "🔴 진료중 / 주말 대기 혼잡";
+            }
+
+            // 병원 카드 그리기
             const card = document.createElement('div');
             card.className = "flex items-center gap-4 p-4 bg-white border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]";
             card.innerHTML = `
@@ -233,29 +279,35 @@ async function submitSchedule() {
             `;
             listContainer.appendChild(card);
 
-            // 가상 지도 마커 생성
+            // 지도 마커 그리기
             const marker = document.createElement('div');
             marker.className = `absolute w-6 h-6 ${statusColor} border-2 border-slate-900 rounded-full flex items-center justify-center cursor-pointer`;
-            marker.style.left = `${20 + (index * 15)}%`; 
-            marker.style.top = `${30 + (index * 12)}%`;
+            marker.style.left = `${20 + (renderedCount * 15)}%`; 
+            marker.style.top = `${30 + (renderedCount * 12)}%`;
             marker.innerHTML = `<span class="absolute whitespace-nowrap bg-white text-[10px] border border-slate-900 font-black px-1 rounded -top-5">${h.name.substring(0,6)}</span>`;
             markerContainer.appendChild(marker);
+
+            renderedCount++;
         });
 
-        // 정상 조회 시 3페이지로 이동
+        // 5️⃣ [예외] 해당 진료과 병원은 있으나, 선택한 시간에 문을 연 곳이 아무도 없을 때
+        if (renderedCount === 0) {
+            listContainer.innerHTML = `
+                <p class="text-center text-slate-500 py-6">
+                    💡 선택하신 시간(<span class="text-blue-600 font-black">${userTargetTimeString}</span>)에는 <br>
+                    정기 휴무이거나 진료 시간이 종료되어 방문 가능한 [${dept}] 병원이 없습니다.
+                </p>`;
+        }
+
         navigateTo('page3');
 
     } catch (err) {
-        // 데이터베이스 조회 에러 상황 피드백 강화
-        console.error("Supabase 연동 또는 쿼리 오류:", err);
+        console.error("원격 DB 병원 목록 필터링 오류:", err);
         listContainer.innerHTML = `
-            <div class="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 space-y-2">
-                <p class="font-black">🚨 Supabase 조회 실패</p>
-                <p class="text-sm font-bold">오류 내용: ${err.message || err}</p>
-                <p class="text-xs text-slate-500">Tip: 테이블명, 외래키(FK) 관계 설정 혹은 필드명을 확인하시고 브라우저 콘솔(F12 -> Console)을 확인해 주세요.</p>
+            <div class="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 space-y-1">
+                <p class="font-black">🚨 데이터베이스 조회 실패</p>
+                <p class="text-xs font-bold">오류 원인: ${err.message || err}</p>
             </div>`;
-        
-        // 에러가 나더라도 화면 전환을 강제하여 사용자가 에러 메시지를 볼 수 있게 함
         navigateTo('page3');
     }
 }
