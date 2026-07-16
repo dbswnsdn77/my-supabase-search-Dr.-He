@@ -6,6 +6,23 @@
     <title>홈 닥터 (Home Doctor)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- 1️⃣ Leaflet CSS & JS 추가 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <style>
+        /* 지도 내에서 버튼이나 팝업이 네오 브루탈리즘 스타일과 어울리도록 폰트 강제 적용 */
+        .leaflet-popup-content-wrapper {
+            border: 2px solid #0f172a !important;
+            border-radius: 8px !important;
+            box-shadow: 4px 4px 0px 0px rgba(15,23,42,1) !important;
+            font-family: ui-sans-serif, system-ui, sans-serif;
+        }
+        .leaflet-popup-tip {
+            border: 2px solid #0f172a !important;
+        }
+    </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex items-center justify-center p-4 md:p-8">
 
@@ -25,6 +42,7 @@
             </div>
         </header>
 
+        <!-- [화면 1] -->
         <div id="page1" class="p-8 space-y-8">
             <div class="bg-blue-50 border-2 border-slate-900 p-8 rounded-xl text-center font-black space-y-3">
                 <p class="text-2xl md:text-3xl">“어디가 아프신가요?”</p>
@@ -39,6 +57,7 @@
             </div>
         </div>
 
+        <!-- [화면 2] -->
         <div id="page2" class="p-8 space-y-8 hidden">
             <div class="border-2 border-slate-900 rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
                 <div class="bg-slate-900 text-white font-black p-4 text-center text-lg">✨ AI 실제 분석 결과 (내 DB 기반)</div>
@@ -70,16 +89,15 @@
             </button>
         </div>
 
+        <!-- [화면 3] -->
         <div id="page3" class="p-8 space-y-6 hidden">
             <div class="flex flex-col sm:flex-row gap-3 font-black text-base text-center">
                 <div id="matchDept" class="flex-1 bg-blue-100 border-2 border-slate-900 py-3 rounded-lg">[-]</div>
                 <div id="matchTime" class="flex-1 bg-amber-100 border-2 border-slate-900 py-3 rounded-lg">[-] 방문 예정</div>
             </div>
 
-            <div class="border-2 border-slate-900 rounded-xl h-72 bg-sky-100 relative overflow-hidden flex items-center justify-center shadow-inner">
-                <span class="font-black text-slate-400 tracking-widest text-lg pointer-events-none">[ 분당구 DB 연동 가상 MAP ]</span>
-                <div id="mapMarkers"></div>
-            </div>
+            <!-- 2️⃣ 가상 지도 영역 대신 실제 Leaflet 지도가 담길 div로 변경 (z-0으로 헤더 및 메뉴 오버레이 방지) -->
+            <div id="map" class="border-2 border-slate-900 rounded-xl h-72 bg-sky-100 relative overflow-hidden shadow-inner z-0"></div>
 
             <div class="space-y-4">
                 <h3 class="font-black text-xl flex items-center gap-2">📍 추천 병원 리스트 <span class="text-sm font-bold text-slate-500">(데이터베이스 실시간 조회)</span></h3>
@@ -89,15 +107,14 @@
     </div>
 
     <script>
-        // ===================================================
-        // 🔒 AI API Key는 Vercel 환경변수로 이동되어 프론트엔드에서 제거됨!
-        // Supabase 키는 익명(Anon) 키이므로 프론트엔드에 노출되어도 무방합니다.
-        // ===================================================
         const SUPABASE_URL = "https://sowrxhudpugvoytcobsh.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvd3J4aHVkcHVndm95dGNvYnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NjA1MDAsImV4cCI6MjA5NjEzNjUwMH0.HqtA7_8gn32MILCkJSnpVaN7U_5pmV2OPDBax_9L7js";           
         
-        // Supabase 클라이언트 초기화
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 3️⃣ Leaflet 지도 및 마커 그룹 글로벌 변수 선언
+        let map;
+        let markerGroup;
 
         function timeStringToMinutes(timeStr) {
             if(!timeStr) return null;
@@ -122,17 +139,41 @@
                 if(i === 2) opt.selected = true; 
                 hourSelect.appendChild(opt);
             }
+
+            // 4️⃣ 지도 초기화 함수 실행
+            initMap();
         }
-        init();
+
+        // 5️⃣ Leaflet 지도 초기설정 함수 생성
+        function initMap() {
+            // 기본 중심값 설정 (예: 분당구청 인근 37.3827, 127.1189)
+            map = L.map('map').setView([37.3827, 127.1189], 13);
+
+            // OSM 오픈소스 지도 타일 레이어 추가
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // 마커들을 하나로 관리할 그룹 생성 및 지도 추가
+            markerGroup = L.layerGroup().addTo(map);
+        }
 
         function toggleMenu() { document.getElementById('navMenu').classList.toggle('hidden'); }
+        
         function navigateTo(pageId) {
             ['page1', 'page2', 'page3'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById(pageId).classList.remove('hidden');
             document.getElementById('navMenu').classList.add('hidden');
+
+            // 6️⃣ [중요] 3페이지로 진입할 때 지도의 깨짐 방지를 위해 크기를 재연산(invalidateSize) 처리
+            if (pageId === 'page3' && map) {
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            }
         }
 
-        // [화면 1] 내부 Vercel API(/api/diagnose)를 호출하여 결과 받아오기
         async function submitSymptom() {
             const text = document.getElementById('symptomInput').value;
             if(!text.trim()) {
@@ -146,22 +187,15 @@
             navigateTo('page2');
 
             try {
-                // Vercel Serverless Function 호출 (Gemini 연동 백엔드)
                 const response = await fetch('/api/diagnose', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ symptom: text }),
                 });
 
-                if (!response.ok) {
-                    throw new Error("서버 응답 에러");
-                }
+                if (!response.ok) throw new Error("서버 응답 에러");
 
                 const aiResult = await response.json();
-
-                // 화면 UI에 매칭값 세팅
                 document.getElementById('aiDisease').textContent = aiResult.disease;
                 document.getElementById('aiDepartment').textContent = aiResult.department;
                 document.getElementById('aiTip').textContent = aiResult.tip;
@@ -175,144 +209,167 @@
             }
         }
 
-        // [화면 2 ➡️ 화면 3] 추천 진료과의 모든 병원을 필터링 없이 출력 (테스트 모드)
-// [화면 2 ➡️ 화면 3] 판정된 진료과 및 DDL 스키마 구조에 맞게 Supabase DB 실시간 조회 (필터링 완벽 적용)
-// 시간을 분(Minute) 단위 숫자로 변환하는 헬퍼 함수
-function timeStringToMinutes(timeStr) {
-    if (!timeStr) return null;
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    return hours * 60 + minutes;
-}
+        async function submitSchedule() {
+            const dayOfWeek = document.getElementById('visitDate').value; 
+            const ampm = document.getElementById('visitAmpm').value;
+            let hour = parseInt(document.getElementById('visitHour').value);
+            const minute = document.getElementById('visitMinute').value;
+            const dept = document.getElementById('aiDepartment').textContent;
 
-// [화면 2 ➡️ 화면 3] 선택한 요일/시간을 고려하여 병원별 진료 가능 여부 표시
-async function submitSchedule() {
-    const dayOfWeek = document.getElementById('visitDate').value; // 예: "월", "화"
-    const ampm = document.getElementById('visitAmpm').value;
-    let hour = parseInt(document.getElementById('visitHour').value);
-    const minute = document.getElementById('visitMinute').value;
-    const dept = document.getElementById('aiDepartment').textContent;
+            if(ampm === "PM" && hour !== 12) hour += 12;
+            if(ampm === "AM" && hour === 12) hour = 0;
+            const userTargetTimeString = `${hour.toString().padStart(2, '0')}:${minute}`;
+            const userTargetMinutes = timeStringToMinutes(userTargetTimeString);
 
-    // 24시간제로 시간 변환
-    if(ampm === "PM" && hour !== 12) hour += 12;
-    if(ampm === "AM" && hour === 12) hour = 0;
-    const userTargetTimeString = `${hour.toString().padStart(2, '0')}:${minute}`;
-    const userTargetMinutes = timeStringToMinutes(userTargetTimeString);
+            document.getElementById('matchDept').textContent = `🩺 ${dept}`;
+            document.getElementById('matchTime').textContent = `⏰ 방문예정: ${userTargetTimeString} (${dayOfWeek}요일)`;
 
-    document.getElementById('matchDept').textContent = `🩺 ${dept}`;
-    document.getElementById('matchTime').textContent = `⏰ 방문예정: ${userTargetTimeString} (${dayOfWeek}요일)`;
-
-    const listContainer = document.getElementById('hospitalList');
-    const markerContainer = document.getElementById('mapMarkers');
-    listContainer.innerHTML = '<p class="text-center font-bold text-emerald-600">실시간 병원 운영 시간 검증 중...</p>';
-    markerContainer.innerHTML = '';
-
-    try {
-        // 1️⃣ 해당 진료과를 가진 병원 정보 및 운영시간 DB 조회
-        const { data: deptRows, error } = await supabaseClient
-            .from('hospital_departments')
-            .select(`
-                department_name,
-                hospital_meta (
-                    id, name, address, latitude, longitude,
-                    lunch_start, lunch_end,
-                    mon_open, mon_close, tue_open, tue_close, wed_open, wed_close,
-                    thu_open, thu_close, fri_open, fri_close, sat_open, sat_close, sun_open, sun_close
-                )
-            `)
-            .eq('department_name', dept);
-
-        if (error) throw error;
-        listContainer.innerHTML = '';
-
-        if(!deptRows || deptRows.length === 0) {
-            listContainer.innerHTML = `<p class="text-center text-slate-400 py-4">현재 DB에 [${dept}] 진료 병원이 등록되어 있지 않습니다.</p>`;
-            navigateTo('page3');
-            return;
-        }
-
-        // 2️⃣ 병원별로 현재 시간에 갈 수 있는지 없는지 판별 루프
-        deptRows.forEach((row, index) => {
-            const h = row.hospital_meta;
-            if (!h) return;
-
-            // 요일에 맞는 컬럼명 매핑 (월 -> mon_open / mon_close)
-            const dayMap = { '월':'mon', '화':'tue', '수':'wed', '목':'thu', '금':'fri', '토':'sat', '일':'sun' };
-            const prefix = dayMap[dayOfWeek];
+            const listContainer = document.getElementById('hospitalList');
+            listContainer.innerHTML = '<p class="text-center font-bold text-emerald-600">실시간 병원 운영 시간 검증 중...</p>';
             
-            const openTime = h[`${prefix}_open`];   
-            const closeTime = h[`${prefix}_close`]; 
-
-            let canVisit = true;
-            let statusText = "🟢 진료 가능 (방문 가능)";
-            let statusColor = "bg-green-500";
-            let cardBg = "bg-white";
-
-            const openMin = timeStringToMinutes(openTime);
-            const closeMin = timeStringToMinutes(closeTime);
-            const lunchStartMin = timeStringToMinutes(h.lunch_start);
-            const lunchEndMin = timeStringToMinutes(h.lunch_end);
-
-            // [조건 1] 해당 요일에 운영을 안 하거나 시간이 없는 경우 (휴무)
-            if (!openTime || !closeTime || openMin === null || closeMin === null) {
-                canVisit = false;
-                statusText = `🔴 정기 휴무 (${dayOfWeek}요일 휴진)`;
-                statusColor = "bg-red-500";
-                cardBg = "bg-slate-50 opacity-70";
-            } 
-            // [조건 2] 오픈 시간 전이거나 마감 시간 이후인 경우
-            else if (userTargetMinutes < openMin || userTargetMinutes >= closeMin) {
-                canVisit = false;
-                statusText = `🔴 진료 종료 (운영시간: ${openTime} ~ ${closeTime})`;
-                statusColor = "bg-red-500";
-                cardBg = "bg-slate-50 opacity-70";
-            } 
-            // [조건 3] 점심 시간 범위에 걸치는 경우
-            else if (lunchStartMin !== null && lunchEndMin !== null && 
-                     userTargetMinutes >= lunchStartMin && userTargetMinutes < lunchEndMin) {
-                canVisit = false;
-                statusText = `🟡 점심 시간 (${h.lunch_start} ~ ${h.lunch_end})`;
-                statusColor = "bg-amber-400";
-                cardBg = "bg-amber-50/50";
+            // 7️⃣ 기존 지도 마커 초기화
+            if (markerGroup) {
+                markerGroup.clearLayers();
             }
 
-            // 3️⃣ 결과에 따른 병원 카드 UI 동적 생성
-            const card = document.createElement('div');
-            card.className = `flex items-center gap-4 p-4 ${cardBg} border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all`;
-            card.innerHTML = `
-                <div class="w-5 h-5 ${statusColor} border-2 border-slate-900 rounded-full flex-shrink-0"></div>
-                <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                        <p class="font-black text-lg text-slate-900">${h.name}</p>
-                        ${!canVisit ? `<span class="text-[10px] bg-slate-900 text-white font-black px-1.5 py-0.5 rounded">방문불가</span>` : ''}
-                    </div>
-                    <p class="text-xs text-slate-500 font-bold mt-0.5">📍 ${h.address}</p>
-                    <p class="text-sm font-black mt-1 ${canVisit ? 'text-emerald-600' : 'text-slate-500'}">${statusText}</p>
-                </div>
-            `;
-            listContainer.appendChild(card);
+            try {
+                const { data: deptRows, error } = await supabaseClient
+                    .from('hospital_departments')
+                    .select(`
+                        department_name,
+                        hospital_meta (
+                            id, name, address, latitude, longitude,
+                            lunch_start, lunch_end,
+                            mon_open, mon_close, tue_open, tue_close, wed_open, wed_close,
+                            thu_open, thu_close, fri_open, fri_close, sat_open, sat_close, sun_open, sun_close
+                        )
+                    `)
+                    .eq('department_name', dept);
 
-            // 4️⃣ 지도 마커에도 상태 색상 반영
-            const marker = document.createElement('div');
-            marker.className = `absolute w-6 h-6 ${statusColor} border-2 border-slate-900 rounded-full flex items-center justify-center cursor-pointer shadow-md`;
-            marker.style.left = `${20 + (index * 15)}%`; 
-            marker.style.top = `${30 + (index * 12)}%`;
-            marker.innerHTML = `<span class="absolute whitespace-nowrap bg-white text-[10px] border border-slate-900 font-black px-1 rounded -top-5">${h.name.substring(0,6)}</span>`;
-            markerContainer.appendChild(marker);
-        });
+                if (error) throw error;
+                listContainer.innerHTML = '';
 
-        // 결과 페이지 이동
-        navigateTo('page3');
+                if(!deptRows || deptRows.length === 0) {
+                    listContainer.innerHTML = `<p class="text-center text-slate-400 py-4">현재 DB에 [${dept}] 진료 병원이 등록되어 있지 않습니다.</p>`;
+                    navigateTo('page3');
+                    return;
+                }
 
-    } catch (err) {
-        console.error("원격 DB 시간 필터링 오류:", err);
-        listContainer.innerHTML = `
-            <div class="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700">
-                <p class="font-black">🚨 시스템 오류 발생</p>
-                <p class="text-xs font-bold">${err.message || err}</p>
-            </div>`;
-        navigateTo('page3');
-    }
-}
+                // 지도 포커스를 계산하기 위한 위치 좌표 배열
+                const latLngs = [];
+
+                deptRows.forEach((row, index) => {
+                    const h = row.hospital_meta;
+                    if (!h) return;
+
+                    const dayMap = { '월':'mon', '화':'tue', '수':'wed', '목':'thu', '금':'fri', '토':'sat', '일':'sun' };
+                    const prefix = dayMap[dayOfWeek];
+                    
+                    const openTime = h[`${prefix}_open`];   
+                    const closeTime = h[`${prefix}_close`]; 
+
+                    let canVisit = true;
+                    let statusText = "🟢 진료 가능 (방문 가능)";
+                    let statusColor = "bg-green-500";
+                    let cardBg = "bg-white";
+
+                    const openMin = timeStringToMinutes(openTime);
+                    const closeMin = timeStringToMinutes(closeTime);
+                    const lunchStartMin = timeStringToMinutes(h.lunch_start);
+                    const lunchEndMin = timeStringToMinutes(h.lunch_end);
+
+                    if (!openTime || !closeTime || openMin === null || closeMin === null) {
+                        canVisit = false;
+                        statusText = `🔴 정기 휴무 (${dayOfWeek}요일 휴진)`;
+                        statusColor = "bg-red-500";
+                        cardBg = "bg-slate-50 opacity-70";
+                    } 
+                    else if (userTargetMinutes < openMin || userTargetMinutes >= closeMin) {
+                        canVisit = false;
+                        statusText = `🔴 진료 종료 (운영시간: ${openTime} ~ ${closeTime})`;
+                        statusColor = "bg-red-500";
+                        cardBg = "bg-slate-50 opacity-70";
+                    } 
+                    else if (lunchStartMin !== null && lunchEndMin !== null && 
+                             userTargetMinutes >= lunchStartMin && userTargetMinutes < lunchEndMin) {
+                        canVisit = false;
+                        statusText = `🟡 점심 시간 (${h.lunch_start} ~ ${h.lunch_end})`;
+                        statusColor = "bg-amber-400";
+                        cardBg = "bg-amber-50/50";
+                    }
+
+                    // 8️⃣ 병원 리스트 UI 생성
+                    const card = document.createElement('div');
+                    card.className = `flex items-center gap-4 p-4 ${cardBg} border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all`;
+                    card.innerHTML = `
+                        <div class="w-5 h-5 ${statusColor} border-2 border-slate-900 rounded-full flex-shrink-0"></div>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <p class="font-black text-lg text-slate-900">${h.name}</p>
+                                ${!canVisit ? `<span class="text-[10px] bg-slate-900 text-white font-black px-1.5 py-0.5 rounded">방문불가</span>` : ''}
+                            </div>
+                            <p class="text-xs text-slate-500 font-bold mt-0.5">📍 ${h.address}</p>
+                            <p class="text-sm font-black mt-1 ${canVisit ? 'text-emerald-600' : 'text-slate-500'}">${statusText}</p>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+
+                    // 9️⃣ [핵심] 실제 지도 마커 동적 생성 및 매핑 (위도/경도가 존재하는 경우에만 실행)
+                    if (h.latitude && h.longitude) {
+                        const lat = parseFloat(h.latitude);
+                        const lng = parseFloat(h.longitude);
+                        latLngs.push([lat, lng]);
+
+                        // 기존 가상 지도 마커와 완벽하게 대조되는 '네오 브루탈리즘 스타일 마커' HTML 설정
+                        const customIcon = L.divIcon({
+                            className: 'custom-brutalist-marker',
+                            html: `
+                                <div class="relative flex flex-col items-center">
+                                    <!-- 마커 위의 병원 이름 꼬리표 -->
+                                    <span class="absolute -top-7 whitespace-nowrap bg-white text-[10px] border-2 border-slate-900 font-black px-1.5 py-0.5 rounded shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] z-50">${h.name.substring(0, 8)}</span>
+                                    <!-- 요일 상황별 색상이 들어간 마커 동그라미 -->
+                                    <div class="w-6 h-6 ${statusColor} border-2 border-slate-900 rounded-full shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"></div>
+                                </div>
+                            `,
+                            iconSize: [24, 24],
+                            iconAnchor: [12, 12]
+                        });
+
+                        // 마커 생성 및 클릭 시 상세 정보 팝업 바인딩
+                        const marker = L.marker([lat, lng], { icon: customIcon })
+                            .bindPopup(`
+                                <div class="p-1">
+                                    <h4 class="font-black text-slate-900 text-base">${h.name}</h4>
+                                    <p class="text-xs text-slate-500 mt-1">📍 ${h.address}</p>
+                                    <p class="text-xs font-black mt-2 ${canVisit ? 'text-emerald-600' : 'text-red-500'}">${statusText}</p>
+                                </div>
+                            `);
+                        
+                        markerGroup.addLayer(marker);
+                    }
+                });
+
+                // 화면 전환 호출
+                navigateTo('page3');
+
+                // 🔟 검색된 병원들의 위치가 한눈에 다 보이도록 지도의 포커스 자동 맞춤
+                if (latLngs.length > 0 && map) {
+                    map.fitBounds(latLngs, { padding: [40, 40] });
+                }
+
+            } catch (err) {
+                console.error("원격 DB 시간 필터링 오류:", err);
+                listContainer.innerHTML = `
+                    <div class="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700">
+                        <p class="font-black">🚨 시스템 오류 발생</p>
+                        <p class="text-xs font-bold">${err.message || err}</p>
+                    </div>`;
+                navigateTo('page3');
+            }
+        }
+
+        // 초기 실행 함수 호출
+        init();
     </script>
 </body>
 </html>
