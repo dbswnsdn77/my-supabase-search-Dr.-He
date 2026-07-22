@@ -19,8 +19,8 @@ export default async function handler(req, res) {
     const myAvailableDepts = ["내과", "이비인후과", "정형외과", "소아청소년과", "안과", "피부과", "외과", "치과", "산부인과", "신경외과"];
 
     try {
-        // 3. 최신 Gemini 3.5 Flash 모델 API 호출 (URL 모델명 수정됨)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+        // 3. 최신 Gemini 2.5 Flash 모델 API 호출
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -54,14 +54,21 @@ ${JSON.stringify(myAvailableDepts)}
 
         const data = await response.json();
 
-        // 4. 오류 처리 (할당량 초과, 키 오류 등)
+        // 4. 오류 처리 (할당량 초과, 키 오류 등 상세 에러 수집)
         if (!response.ok) {
-            console.error("Gemini API Error:", data);
-            return res.status(response.status).json({ error: 'Gemini API call failed' });
+            console.error("Gemini API Error Details:", JSON.stringify(data));
+            return res.status(response.status).json({ 
+                error: 'Gemini API call failed', 
+                message: data.error?.message || 'Unknown Gemini API error'
+            });
         }
 
         // 5. Gemini 응답에서 JSON 텍스트 추출 및 파싱
-        const textOutput = data.candidates[0].content.parts[0].text;
+        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textOutput) {
+            throw new Error("Gemini로부터 빈 응답이 수신되었습니다.");
+        }
+
         const result = JSON.parse(textOutput);
 
         // 6. 프론트엔드로 결과 반환
@@ -69,6 +76,6 @@ ${JSON.stringify(myAvailableDepts)}
 
     } catch (error) {
         console.error("Server Function Error:", error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 }
