@@ -19,8 +19,8 @@ export default async function handler(req, res) {
     const myAvailableDepts = ["내과", "이비인후과", "정형외과", "소아청소년과", "안과", "피부과", "외과", "치과", "산부인과", "신경외과"];
 
     try {
-        // 3. 최신 Gemini 3.5 Flash 모델 API 호출 (URL 모델명 수정됨)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+        // 3. 최신 Gemini 1.5 Flash 모델 API 호출
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
