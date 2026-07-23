@@ -45,6 +45,7 @@ ${JSON.stringify(myAvailableDepts)}
 }` 
                     }]
                 },
+                // Gemini에게 반드시 JSON 형태로 응답하도록 강제
                 generationConfig: {
                     responseMimeType: "application/json",
                 }
@@ -63,14 +64,14 @@ ${JSON.stringify(myAvailableDepts)}
         const textOutput = data.candidates[0].content.parts[0].text;
         const result = JSON.parse(textOutput);
 
-        // 🌟 [서버 텍스트 로그 기록] Vercel 대시보드(Logs)에 사용자가 적은 증상과 AI 답변이 텍스트로 남습니다.
+        // 🌟 [추가됨] 서버 텍스트 로그 기록 (Vercel 대시보드 Logs 탭에서 확인 가능)
         const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
         console.log("\n================ [ 진단 로그 기록 ] ================");
         console.log(`[일시] ${now}`);
-        console.log(`[환자 증상] ${symptom}`);
-        console.log(`[AI 답변 - 의심질환] ${result.disease}`);
-        console.log(`[AI 답변 - 추천과]   ${result.department}`);
-        console.log(`[AI 답변 - 한줄조언] ${result.tip}`);
+        console.log(`[환자 작성 증상] ${symptom}`);
+        console.log(`[AI 의심 질환]   ${result.disease}`);
+        console.log(`[AI 추천 진료과] ${result.department}`);
+        console.log(`[AI 한줄 조언]   ${result.tip}`);
         console.log("===================================================\n");
 
         // 6. 프론트엔드로 결과 반환
