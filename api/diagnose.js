@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const myAvailableDepts = ["내과", "이비인후과", "정형외과", "소아청소년과", "안과", "피부과", "외과", "치과", "산부인과", "신경외과"];
 
     try {
-        // 3. 최신 Gemini 3.5 Flash 모델 API 호출 (URL 모델명 수정됨)
+        // 3. 최신 Gemini 3.5 Flash 모델 API 호출
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
@@ -45,7 +45,6 @@ ${JSON.stringify(myAvailableDepts)}
 }` 
                     }]
                 },
-                // Gemini에게 반드시 JSON 형태로 응답하도록 강제
                 generationConfig: {
                     responseMimeType: "application/json",
                 }
@@ -63,6 +62,16 @@ ${JSON.stringify(myAvailableDepts)}
         // 5. Gemini 응답에서 JSON 텍스트 추출 및 파싱
         const textOutput = data.candidates[0].content.parts[0].text;
         const result = JSON.parse(textOutput);
+
+        // 🌟 [서버 텍스트 로그 기록] Vercel 대시보드(Logs)에 사용자가 적은 증상과 AI 답변이 텍스트로 남습니다.
+        const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        console.log("\n================ [ 진단 로그 기록 ] ================");
+        console.log(`[일시] ${now}`);
+        console.log(`[환자 증상] ${symptom}`);
+        console.log(`[AI 답변 - 의심질환] ${result.disease}`);
+        console.log(`[AI 답변 - 추천과]   ${result.department}`);
+        console.log(`[AI 답변 - 한줄조언] ${result.tip}`);
+        console.log("===================================================\n");
 
         // 6. 프론트엔드로 결과 반환
         return res.status(200).json(result);
