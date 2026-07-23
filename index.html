@@ -2,16 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>홈 닥터 (Home Doctor)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- Leaflet CSS & JS -->
+    <!-- 1️⃣ Leaflet CSS & JS 추가 -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <style>
+        /* 지도 내에서 버튼이나 팝업이 네오 브루탈리즘 스타일과 어울리도록 폰트 강제 적용 */
         .leaflet-popup-content-wrapper {
             border: 2px solid #0f172a !important;
             border-radius: 8px !important;
@@ -23,100 +24,95 @@
         }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex items-center justify-center p-2 sm:p-4 md:p-8">
+<body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex items-center justify-center p-4 md:p-8">
 
-    <div class="w-full max-w-2xl bg-white border-4 border-slate-900 shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] sm:shadow-[10px_10px_0px_0px_rgba(15,23,42,1)] rounded-xl relative overflow-hidden">
+    <div class="w-full max-w-2xl bg-white border-4 border-slate-900 shadow-[10px_10px_0px_0px_rgba(15,23,42,1)] rounded-xl relative overflow-hidden">
         
-        <!-- Header : 반응형 줄바꿈 방지 적용 -->
-        <header class="border-b-4 border-slate-900 p-3 sm:p-5 bg-emerald-400 flex justify-between items-center gap-2 sticky top-0 z-50">
-            <h1 class="text-lg sm:text-2xl font-black tracking-tight cursor-pointer select-none truncate" onclick="navigateTo('page1')">
-                🏥 홈 닥터 <span class="hidden sm:inline">(Home Doctor)</span>
-            </h1>
-            <div class="relative shrink-0">
-                <button onclick="toggleMenu()" class="bg-white border-2 border-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 font-black text-sm sm:text-base whitespace-nowrap hover:bg-slate-100 transition active:translate-y-0.5">
+        <header class="border-b-4 border-slate-900 p-5 bg-emerald-400 flex justify-between items-center sticky top-0 z-50">
+            <h1 class="text-2xl font-black tracking-tight cursor-pointer select-none" onclick="navigateTo('page1')">🏥 홈 닥터 (Home Doctor)</h1>
+            <div class="relative">
+                <button onclick="toggleMenu()" class="bg-white border-2 border-slate-900 px-4 py-2 font-black text-base hover:bg-slate-100 transition active:translate-y-0.5">
                     [메뉴]
                 </button>
-                <div id="navMenu" class="hidden absolute right-0 mt-2 w-44 sm:w-48 bg-white border-2 border-slate-900 font-black text-sm sm:text-base z-50 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
-                    <button onclick="navigateTo('page1')" class="w-full text-left p-3 hover:bg-slate-100 border-b-2 border-slate-900 whitespace-nowrap">1. 증상 입력</button>
-                    <button onclick="navigateTo('page2')" class="w-full text-left p-3 hover:bg-slate-100 border-b-2 border-slate-900 whitespace-nowrap">2. 진단 및 시간</button>
-                    <button onclick="navigateTo('page3')" class="w-full text-left p-3 hover:bg-slate-100 whitespace-nowrap">3. 주변 병원 지도</button>
+                <div id="navMenu" class="hidden absolute right-0 mt-2 w-48 bg-white border-2 border-slate-900 font-black text-base z-50 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
+                    <button onclick="navigateTo('page1')" class="w-full text-left p-3 hover:bg-slate-100 border-b-2 border-slate-900">1. 증상 입력</button>
+                    <button onclick="navigateTo('page2')" class="w-full text-left p-3 hover:bg-slate-100 border-b-2 border-slate-900">2. 진단 및 시간</button>
+                    <button onclick="navigateTo('page3')" class="w-full text-left p-3 hover:bg-slate-100">3. 주변 병원 지도</button>
                 </div>
             </div>
         </header>
 
         <!-- [화면 1] -->
-        <div id="page1" class="p-4 sm:p-8 space-y-6 sm:space-y-8">
-            <div class="bg-blue-50 border-2 border-slate-900 p-5 sm:p-8 rounded-xl text-center font-black space-y-2 sm:space-y-3">
-                <p class="text-xl sm:text-3xl">“어디가 아프신가요?”</p>
-                <p class="text-slate-600 text-xs sm:text-base font-bold">내 DB의 10대 진료과 목록을 기준으로 실제 AI가 정밀 분석합니다.</p>
+        <div id="page1" class="p-8 space-y-8">
+            <div class="bg-blue-50 border-2 border-slate-900 p-8 rounded-xl text-center font-black space-y-3">
+                <p class="text-2xl md:text-3xl">“어디가 아프신가요?”</p>
+                <p class="text-slate-600 text-base md:text-lg font-bold">내 DB의 10대 진료과 목록을 기준으로 실제 AI가 정밀 분석합니다.</p>
             </div>
-            <div class="space-y-4 sm:space-y-6">
+            <div class="space-y-6">
                 <textarea id="symptomInput" placeholder="예: 어제 밤부터 오른쪽 아랫배가 맹장 터진 것처럼 콕콕 찌르듯이 아파요." 
-                    class="w-full h-40 sm:h-48 p-4 sm:p-5 border-2 border-slate-900 rounded-xl outline-none focus:bg-slate-50 font-bold text-base sm:text-lg resize-none shadow-inner"></textarea>
-                <button onclick="submitSymptom()" class="w-full bg-emerald-400 hover:bg-emerald-500 text-slate-900 font-black text-lg sm:text-xl py-3.5 sm:py-4 border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] sm:shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] transition active:translate-x-0.5 active:translate-y-0.5 active:shadow-none whitespace-nowrap">
+                    class="w-full h-48 p-5 border-2 border-slate-900 rounded-xl outline-none focus:bg-slate-50 font-bold text-lg resize-none shadow-inner"></textarea>
+                <button onclick="submitSymptom()" class="w-full bg-emerald-400 hover:bg-emerald-500 text-slate-900 font-black text-xl py-4 border-2 border-slate-900 rounded-xl shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] transition active:translate-x-0.5 active:translate-y-0.5 active:shadow-none">
                     증상 제출하고 AI 진단받기
                 </button>
             </div>
         </div>
 
         <!-- [화면 2] -->
-        <div id="page2" class="p-4 sm:p-8 space-y-6 sm:space-y-8 hidden">
+        <div id="page2" class="p-8 space-y-8 hidden">
             <div class="border-2 border-slate-900 rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
-                <div class="bg-slate-900 text-white font-black p-3 sm:p-4 text-center text-base sm:text-lg whitespace-nowrap">✨ AI 실제 분석 결과 (내 DB 기반)</div>
-                <div class="p-4 sm:p-6 bg-amber-50 space-y-3 sm:space-y-4 font-black text-sm sm:text-lg">
+                <div class="bg-slate-900 text-white font-black p-4 text-center text-lg">✨ AI 실제 분석 결과 (내 DB 기반)</div>
+                <div class="p-6 bg-amber-50 space-y-4 font-black text-base md:text-lg">
                     <p class="text-slate-700">🩺 의심 질환: <span id="aiDisease" class="text-blue-600 underline decoration-2">분석 중...</span></p>
-                    <p class="text-slate-700">🎯 추천 진료과: <span id="aiDepartment" class="text-base sm:text-xl text-emerald-600 bg-emerald-100 px-2 py-0.5 border border-emerald-400 rounded inline-block mt-1 sm:mt-0">분석 중...</span></p>
-                    <p class="text-slate-700">💡 행동 가이드: <span id="aiTip" class="text-slate-900 font-bold text-xs sm:text-base bg-white/60 p-2 block border border-slate-300 rounded mt-1">분석 중...</span></p>
+                    <p class="text-slate-700">🎯 최종 추천 진료과: <span id="aiDepartment" class="text-xl text-emerald-600 bg-emerald-100 px-2 py-0.5 border border-emerald-400 rounded">분석 중...</span></p>
+                    <p class="text-slate-700">💡 행동 가이드: <span id="aiTip" class="text-slate-900 font-bold text-sm md:text-base bg-white/60 p-2 block border border-slate-300 rounded mt-1">분석 중...</span></p>
                 </div>
             </div>
 
-            <div class="border-2 border-slate-900 rounded-xl p-4 sm:p-6 bg-slate-50 space-y-3 sm:space-y-4">
-                <p class="font-black text-center text-lg sm:text-xl">📅 언제 방문 하실건가요?</p>
-                <!-- 모바일에서는 2열, PC에서는 4열로 정렬 -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 font-bold text-sm sm:text-base">
-                    <select id="visitDate" class="p-2.5 sm:p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer w-full"></select>
-                    <select id="visitAmpm" class="p-2.5 sm:p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer w-full">
+            <div class="border-2 border-slate-900 rounded-xl p-6 bg-slate-50 space-y-4">
+                <p class="font-black text-center text-xl">📅 언제 방문 하실건가요?</p>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 font-bold text-base">
+                    <select id="visitDate" class="p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer"></select>
+                    <select id="visitAmpm" class="p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer">
                         <option value="AM">오전</option>
                         <option value="PM" selected>오후</option>
                     </select>
-                    <select id="visitHour" class="p-2.5 sm:p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer w-full"></select>
-                    <select id="visitMinute" class="p-2.5 sm:p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer w-full">
+                    <select id="visitHour" class="p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer"></select>
+                    <select id="visitMinute" class="p-3 border-2 border-slate-900 bg-white rounded-lg cursor-pointer">
                         <option value="00">00분</option>
                         <option value="30">30분</option>
                     </select>
                 </div>
             </div>
 
-            <button onclick="submitSchedule()" class="w-full bg-blue-400 hover:bg-blue-500 text-slate-900 font-black text-lg sm:text-xl py-3.5 sm:py-4 border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] sm:shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] transition active:translate-x-0.5 active:translate-y-0.5 active:shadow-none whitespace-nowrap">
+            <button onclick="submitSchedule()" class="w-full bg-blue-400 hover:bg-blue-500 text-slate-900 font-black text-xl py-4 border-2 border-slate-900 rounded-xl shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] transition active:translate-x-0.5 active:translate-y-0.5 active:shadow-none">
                 이 진료과 보유한 실제 병원 찾기
             </button>
         </div>
 
         <!-- [화면 3] -->
-        <div id="page3" class="p-4 sm:p-8 space-y-4 sm:space-y-6 hidden">
-            <div class="flex flex-row gap-2 sm:gap-3 font-black text-xs sm:text-base text-center">
-                <div id="matchDept" class="flex-1 bg-blue-100 border-2 border-slate-900 py-2.5 sm:py-3 rounded-lg truncate">[-]</div>
-                <div id="matchTime" class="flex-1 bg-amber-100 border-2 border-slate-900 py-2.5 sm:py-3 rounded-lg truncate">[-] 방문 예정</div>
+        <div id="page3" class="p-8 space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row gap-3 font-black text-base text-center">
+                <div id="matchDept" class="flex-1 bg-blue-100 border-2 border-slate-900 py-3 rounded-lg">[-]</div>
+                <div id="matchTime" class="flex-1 bg-amber-100 border-2 border-slate-900 py-3 rounded-lg">[-] 방문 예정</div>
             </div>
 
-            <div id="map" class="border-2 border-slate-900 rounded-xl h-60 sm:h-72 bg-sky-100 relative overflow-hidden shadow-inner z-0"></div>
+            <!-- 2️⃣ 가상 지도 영역 대신 실제 Leaflet 지도가 담길 div로 변경 (z-0으로 헤더 및 메뉴 오버레이 방지) -->
+            <div id="map" class="border-2 border-slate-900 rounded-xl h-72 bg-sky-100 relative overflow-hidden shadow-inner z-0"></div>
 
-            <div class="space-y-3 sm:space-y-4">
-                <h3 class="font-black text-lg sm:text-xl flex items-center justify-between">
-                    <span>📍 추천 병원 리스트</span>
-                    <span class="text-xs font-bold text-slate-500 hidden sm:inline">(데이터베이스 실시간 조회)</span>
-                </h3>
-                <div id="hospitalList" class="space-y-3 font-bold text-sm sm:text-base"></div>
+            <div class="space-y-4">
+                <h3 class="font-black text-xl flex items-center gap-2">📍 추천 병원 리스트 <span class="text-sm font-bold text-slate-500">(데이터베이스 실시간 조회)</span></h3>
+                <div id="hospitalList" class="space-y-3 font-bold text-base"></div>
             </div>
         </div>
     </div>
 
     <script>
         const SUPABASE_URL = "https://sowrxhudpugvoytcobsh.supabase.co"; 
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvd3J4aHVkcHVndm95dGNvYnShIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NjA1MDAsImV4cCI6MjA5NjEzNjUwMH0.HqtA7_8gn32MILCkJSnpVaN7U_5pmV2OPDBax_9L7js";           
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvd3J4aHVkcHVndm95dGNvYnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NjA1MDAsImV4cCI6MjA5NjEzNjUwMH0.HqtA7_8gn32MILCkJSnpVaN7U_5pmV2OPDBax_9L7js";           
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // 3️⃣ Leaflet 지도 및 마커 그룹 글로벌 변수 선언
         let map;
         let markerGroup;
 
@@ -144,17 +140,22 @@
                 hourSelect.appendChild(opt);
             }
 
+            // 4️⃣ 지도 초기화 함수 실행
             initMap();
         }
 
+        // 5️⃣ Leaflet 지도 초기설정 함수 생성
         function initMap() {
+            // 기본 중심값 설정 (예: 분당구청 인근 37.3827, 127.1189)
             map = L.map('map').setView([37.3827, 127.1189], 13);
 
+            // OSM 오픈소스 지도 타일 레이어 추가
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
+            // 마커들을 하나로 관리할 그룹 생성 및 지도 추가
             markerGroup = L.layerGroup().addTo(map);
         }
 
@@ -165,6 +166,7 @@
             document.getElementById(pageId).classList.remove('hidden');
             document.getElementById('navMenu').classList.add('hidden');
 
+            // 6️⃣ [중요] 3페이지로 진입할 때 지도의 깨짐 방지를 위해 크기를 재연산(invalidateSize) 처리
             if (pageId === 'page3' && map) {
                 setTimeout(() => {
                     map.invalidateSize();
@@ -220,11 +222,12 @@
             const userTargetMinutes = timeStringToMinutes(userTargetTimeString);
 
             document.getElementById('matchDept').textContent = `🩺 ${dept}`;
-            document.getElementById('matchTime').textContent = `⏰ ${userTargetTimeString} (${dayOfWeek})`;
+            document.getElementById('matchTime').textContent = `⏰ 방문예정: ${userTargetTimeString} (${dayOfWeek}요일)`;
 
             const listContainer = document.getElementById('hospitalList');
-            listContainer.innerHTML = '<p class="text-center font-bold text-emerald-600 py-4">실시간 병원 운영 시간 검증 중...</p>';
+            listContainer.innerHTML = '<p class="text-center font-bold text-emerald-600">실시간 병원 운영 시간 검증 중...</p>';
             
+            // 7️⃣ 기존 지도 마커 초기화
             if (markerGroup) {
                 markerGroup.clearLayers();
             }
@@ -252,9 +255,10 @@
                     return;
                 }
 
+                // 지도 포커스를 계산하기 위한 위치 좌표 배열
                 const latLngs = [];
 
-                deptRows.forEach((row) => {
+                deptRows.forEach((row, index) => {
                     const h = row.hospital_meta;
                     if (!h) return;
 
@@ -282,7 +286,7 @@
                     } 
                     else if (userTargetMinutes < openMin || userTargetMinutes >= closeMin) {
                         canVisit = false;
-                        statusText = `🔴 진료 종료 (${openTime} ~ ${closeTime})`;
+                        statusText = `🔴 진료 종료 (운영시간: ${openTime} ~ ${closeTime})`;
                         statusColor = "bg-red-500";
                         cardBg = "bg-slate-50 opacity-70";
                     } 
@@ -294,42 +298,48 @@
                         cardBg = "bg-amber-50/50";
                     }
 
+                    // 8️⃣ 병원 리스트 UI 생성
                     const card = document.createElement('div');
-                    card.className = `flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 ${cardBg} border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all`;
+                    card.className = `flex items-center gap-4 p-4 ${cardBg} border-2 border-slate-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all`;
                     card.innerHTML = `
-                        <div class="w-4 h-4 sm:w-5 sm:h-5 ${statusColor} border-2 border-slate-900 rounded-full shrink-0"></div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                <p class="font-black text-base sm:text-lg text-slate-900 truncate">${h.name}</p>
-                                ${!canVisit ? `<span class="text-[10px] bg-slate-900 text-white font-black px-1.5 py-0.5 rounded shrink-0">방문불가</span>` : ''}
+                        <div class="w-5 h-5 ${statusColor} border-2 border-slate-900 rounded-full flex-shrink-0"></div>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <p class="font-black text-lg text-slate-900">${h.name}</p>
+                                ${!canVisit ? `<span class="text-[10px] bg-slate-900 text-white font-black px-1.5 py-0.5 rounded">방문불가</span>` : ''}
                             </div>
-                            <p class="text-xs text-slate-500 font-bold mt-0.5 truncate">📍 ${h.address}</p>
-                            <p class="text-xs sm:text-sm font-black mt-1 ${canVisit ? 'text-emerald-600' : 'text-slate-500'}">${statusText}</p>
+                            <p class="text-xs text-slate-500 font-bold mt-0.5">📍 ${h.address}</p>
+                            <p class="text-sm font-black mt-1 ${canVisit ? 'text-emerald-600' : 'text-slate-500'}">${statusText}</p>
                         </div>
                     `;
                     listContainer.appendChild(card);
 
+                    // 9️⃣ [핵심] 실제 지도 마커 동적 생성 및 매핑 (위도/경도가 존재하는 경우에만 실행)
                     if (h.latitude && h.longitude) {
                         const lat = parseFloat(h.latitude);
                         const lng = parseFloat(h.longitude);
                         latLngs.push([lat, lng]);
 
+                        // 기존 가상 지도 마커와 완벽하게 대조되는 '네오 브루탈리즘 스타일 마커' HTML 설정
                         const customIcon = L.divIcon({
                             className: 'custom-brutalist-marker',
                             html: `
                                 <div class="relative flex flex-col items-center">
+                                    <!-- 마커 위의 병원 이름 꼬리표 -->
                                     <span class="absolute -top-7 whitespace-nowrap bg-white text-[10px] border-2 border-slate-900 font-black px-1.5 py-0.5 rounded shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] z-50">${h.name.substring(0, 8)}</span>
-                                    <div class="w-5 h-5 sm:w-6 sm:h-6 ${statusColor} border-2 border-slate-900 rounded-full shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"></div>
+                                    <!-- 요일 상황별 색상이 들어간 마커 동그라미 -->
+                                    <div class="w-6 h-6 ${statusColor} border-2 border-slate-900 rounded-full shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"></div>
                                 </div>
                             `,
                             iconSize: [24, 24],
                             iconAnchor: [12, 12]
                         });
 
+                        // 마커 생성 및 클릭 시 상세 정보 팝업 바인딩
                         const marker = L.marker([lat, lng], { icon: customIcon })
                             .bindPopup(`
                                 <div class="p-1">
-                                    <h4 class="font-black text-slate-900 text-sm sm:text-base">${h.name}</h4>
+                                    <h4 class="font-black text-slate-900 text-base">${h.name}</h4>
                                     <p class="text-xs text-slate-500 mt-1">📍 ${h.address}</p>
                                     <p class="text-xs font-black mt-2 ${canVisit ? 'text-emerald-600' : 'text-red-500'}">${statusText}</p>
                                 </div>
@@ -339,8 +349,10 @@
                     }
                 });
 
+                // 화면 전환 호출
                 navigateTo('page3');
 
+                // 🔟 검색된 병원들의 위치가 한눈에 다 보이도록 지도의 포커스 자동 맞춤
                 if (latLngs.length > 0 && map) {
                     map.fitBounds(latLngs, { padding: [40, 40] });
                 }
@@ -356,6 +368,7 @@
             }
         }
 
+        // 초기 실행 함수 호출
         init();
     </script>
 </body>
