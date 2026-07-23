@@ -45,12 +45,36 @@ export default async function handler(req, res) {
 
         const result = JSON.parse(textOutput);
 
-        // 🌟 [서버 텍스트 로그 기록] 사용자의 입력과 AI 응답을 콘솔 로그로 남김
+        // 🌟 1. [Vercel 텍스트 로그 기록]
         console.log("================================================");
         console.log(`[진단 요청 일시] ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
         console.log(`[환자 작성 증상] ${symptom}`);
         console.log(`[AI 분석 결과] 의심질환: ${result.disease} | 추천과: ${result.department} | 조언: ${result.tip}`);
         console.log("================================================");
+
+        // 🌟 2. [Supabase DB 자동 저장]
+        const SUPABASE_URL = "https://sowrxhudpugvoytcobsh.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvd3J4aHVkcHVndm95dGNvYnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NjA1MDAsImV4cCI6MjA5NjEzNjUwMH0.HqtA7_8gn32MILCkJSnpVaN7U_5pmV2OPDBax_9L7js";
+
+        try {
+            await fetch(`${SUPABASE_URL}/rest/v1/diagnosis_logs`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({
+                    symptom: symptom,
+                    disease: result.disease,
+                    department: result.department,
+                    tip: result.tip
+                })
+            });
+        } catch (dbErr) {
+            console.error("Supabase DB 로그 저장 실패 (사용자 응답에는 영향 없음):", dbErr);
+        }
 
         return res.status(200).json(result);
 
