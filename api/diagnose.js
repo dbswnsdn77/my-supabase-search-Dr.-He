@@ -19,8 +19,8 @@ export default async function handler(req, res) {
     const myAvailableDepts = ["내과", "이비인후과", "정형외과", "소아청소년과", "안과", "피부과", "외과", "치과", "산부인과", "신경외과"];
 
     try {
-        // 3. 최신 Gemini 1.5 Flash 모델 API 호출
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        // 3. gemini-3.5-flash 모델 API 호출
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -45,7 +45,6 @@ ${JSON.stringify(myAvailableDepts)}
 }` 
                     }]
                 },
-                // Gemini에게 반드시 JSON 형태로 응답하도록 강제
                 generationConfig: {
                     responseMimeType: "application/json",
                 }
@@ -54,14 +53,21 @@ ${JSON.stringify(myAvailableDepts)}
 
         const data = await response.json();
 
-        // 4. 오류 처리 (할당량 초과, 키 오류 등)
+        // 4. 오류 발생 시 구체적 메시지 반환
         if (!response.ok) {
             console.error("Gemini API Error:", data);
-            return res.status(response.status).json({ error: 'Gemini API call failed' });
+            return res.status(response.status).json({ 
+                error: `Gemini API call failed (${response.status})`,
+                details: data.error?.message || '알 수 없는 Google API 오류'
+            });
         }
 
         // 5. Gemini 응답에서 JSON 텍스트 추출 및 파싱
-        const textOutput = data.candidates[0].content.parts[0].text;
+        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textOutput) {
+            throw new Error("Gemini 응답 데이터가 비어있습니다.");
+        }
+
         const result = JSON.parse(textOutput);
 
         // 6. 프론트엔드로 결과 반환
@@ -69,6 +75,6 @@ ${JSON.stringify(myAvailableDepts)}
 
     } catch (error) {
         console.error("Server Function Error:", error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 }
